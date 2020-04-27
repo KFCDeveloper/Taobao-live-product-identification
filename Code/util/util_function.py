@@ -2,6 +2,7 @@
 import cv2
 import numpy as np
 import pandas as pd
+import json
 from .const import const
 
 shuffle = True
@@ -43,15 +44,15 @@ def load_data_numpy(df):
     """
 
     num_images = len(df)
-    image_path_array = df['image_path'].as_matrix()
-    label_array = df['category'].as_matrix()
-    x1 = df['x1_modified'].as_matrix().reshape(-1, 1)
-    y1 = df['y1_modified'].as_matrix().reshape(-1, 1)
-    x2 = df['x2_modified'].as_matrix().reshape(-1, 1)
-    y2 = df['y2_modified'].as_matrix().reshape(-1, 1)
+    image_path_array = df['img_path'].as_matrix()
+    label_array = json.loads(df['label']).as_matrix()   # 因为label列之前是字符串，现在转化成列表
+    x1 = df['x_min'].as_matrix().reshape(-1, 1)
+    y1 = df['y_min'].as_matrix().reshape(-1, 1)
+    x2 = df['x_max'].as_matrix().reshape(-1, 1)
+    y2 = df['y_max'].as_matrix().reshape(-1, 1)
     bbox_array = np.concatenate((x1, y1, x2, y2), axis=1)
 
-    image_array = np.array([]).reshape(-1, IMG_ROWS, IMG_COLS, 3)
+    image_array = np.array([]).reshape((-1, IMG_ROWS, IMG_COLS, 3))
     adjusted_std = 1.0 / np.sqrt(IMG_COLS * IMG_ROWS * 3)
 
     for i in range(num_images):

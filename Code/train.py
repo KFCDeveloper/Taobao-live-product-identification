@@ -6,9 +6,9 @@ from datetime import datetime
 import tensorflow as tf
 import tensorflow.keras as tk
 
-from .Resnet.model import ResNet_6N_2
-from .util.util_function import *
-from .util.const import const
+from Resnet.model import ResNet_6N_2
+from util.util_function import *
+from util.const import const
 
 REPORT_FREQ = 50
 TRAIN_BATCH_SIZE = 32
@@ -188,12 +188,11 @@ class ResNetImprove(tk.Model):
 
 def training():
     # TODO: 这里的输入是最为简单的输入 后面需要修改
+    # todo: 预处理文件里，对于图片的预处理略显草率，后面等Yolo调试好了，要将里面的box都识别出来，现在先把feature输出出来再说
     train_df = prepare_df(const.train_path,
-                          usecols=['image_path', 'category', 'x1_modified', 'y1_modified', 'x2_modified',
-                                   'y2_modified'])
+                          usecols=['img_path', 'label', 'x_min', 'y_min', 'x_max', 'y_max'])
     vali_df = prepare_df(const.vali_path,
-                         usecols=['image_path', 'category', 'x1_modified', 'y1_modified', 'x2_modified',
-                                  'y2_modified'])
+                         usecols=['img_path', 'label', 'x_min', 'y_min', 'x_max', 'y_max'])
     num_train = len(train_df)
 
     loss_list = []
@@ -274,7 +273,6 @@ def training():
                 # 保存模型
                 train_model.save_weights(train_checkpoint_path)
                 validation_model.save_weights(vali_checkpoint_path)
-                checkpoint_path = os.path.join(TRAIN_DIR, 'model.ckpt')
                 # TODO:saver.save(sess, checkpoint_path, global_step=epoch)
                 # 将error保存下来
                 error_df = pd.DataFrame(data={'step': step_list, 'train_error': train_error_list,
@@ -300,11 +298,11 @@ def test():
     print('Model restored!')
 
     # TODO: 这里的输入需要修改
-    test_df = prepare_df(const.test_path, usecols=['image_path', 'category', 'x1', 'y1', 'x2', 'y2'], shuffle=False)
+    test_df = prepare_df(const.test_path, usecols=['img_path', 'label', 'x_min', 'y_min', 'x_max', 'y_max'], shuffle=False)
     test_df = test_df.iloc[-25:, :]
 
-    prediction_np = np.array([]).reshape(-1, 6)
-    fc_np = np.array([]).reshape(-1, 64)
+    prediction_np = np.array([]).reshape((-1, 6))
+    fc_np = np.array([]).reshape((-1, 64))
     # Hack here: 25 as batch size. 50000 images in total
     for epoch in range(len(test_df) // TEST_BATCH_SIZE):
         df_batch = test_df.iloc[epoch * 25: (epoch + 1) * 25, :]

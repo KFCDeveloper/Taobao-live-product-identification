@@ -17,9 +17,9 @@ class _Const:
 const = _Const()
 
 const.version = 'exp1'
-const.train_path = 'data/train_modified2.csv'
-const.vali_path = 'data/vali_modified2.csv'
-const.test_path = 'data/vali_modified2.csv'
+const.train_path = '../Temp-File/Data/img_processed.csv'
+const.vali_path = '../Temp-File/Data/img_processed.csv'
+const.test_path = '../Temp-File/Data/img_processed.csv'
 const.fc_path = '../Temp-File/Feature-Layer-Output/feature.csv'
 const.test_ckpt_path = 'cache/logs_v3_9/min_model.ckpt-27280'
 const.ckpt_path = 'logs_v3_10/model.ckpt-59999'
