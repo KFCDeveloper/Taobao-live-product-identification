@@ -52,7 +52,7 @@ def load_data_numpy(df):
     for i, v in label_series.items():  # 遍历Series 将每一行抽出来变成numpy数组
         row = np.array(json.loads(v)).astype(np.int)
         label_array_one_hot = np.vstack((label_array_one_hot, row))  # 逐行叠加  注意有两层括号
-        int_value = np.argwhere(row == 1)[0][1]   # 因为列表中只有一个1，所以获取1所在的索引就行
+        int_value = np.argwhere(row == 1)[0][1]  # 因为列表中只有一个1，所以获取1所在的索引就行
         label_array.append(int_value)
     label_array = np.array(label_array)
     np.delete(label_array_one_hot, 0, axis=0)  # 删除第一行 得到了将str Series转化而成的二维numpy数组
@@ -82,14 +82,15 @@ def load_data_numpy(df):
     return image_array, label_array, bbox_array
 
 
-def prepare_df(path, usecols, shuffle=shuffle):
+def prepare_df(path, usecols, if_shuffle):
     """
+    :param if_shuffle: whether shuffle the data
     :param path: the path of a csv file
     :param usecols: which columns to read
     :return: a pandas dataframe
     """
     df = pd.read_csv(path, usecols=usecols)
-    if shuffle is True:
+    if if_shuffle is True:
         order = np.random.permutation(len(df))
         df = df.iloc[order, :]
     return df

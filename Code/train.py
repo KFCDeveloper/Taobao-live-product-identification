@@ -7,7 +7,7 @@ import tensorflow as tf
 import tensorflow.keras as tk
 
 from Resnet.model import ResNet_6N_2
-from util.util_function import *
+from util.main_model_util import *
 from util.const import const
 
 tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
@@ -205,9 +205,10 @@ def training():
     # TODO: 这里的输入是最为简单的输入 后面需要修改
     # todo: 预处理文件里，对于图片的预处理略显草率，后面等Yolo调试好了，要将里面的box都识别出来，现在先把feature输出出来再说
     train_df = prepare_df(const.train_path,
-                          usecols=['img_path', 'label', 'x_min', 'y_min', 'x_max', 'y_max'])
+                          usecols=['img_path', 'label', 'x_min', 'y_min', 'x_max', 'y_max'], if_shuffle=True)
     vali_df = prepare_df(const.vali_path,
-                         usecols=['img_path', 'label', 'x_min', 'y_min', 'x_max', 'y_max'])
+                         usecols=['img_path', 'label', 'x_min', 'y_min', 'x_max', 'y_max'], if_shuffle=True)
+
     num_train = len(train_df)
 
     loss_list = []
@@ -314,7 +315,7 @@ def test():
 
     # TODO: 这里的输入需要修改
     test_df = prepare_df(const.test_path, usecols=['img_path', 'label', 'x_min', 'y_min', 'x_max', 'y_max'],
-                         shuffle=False)
+                         if_shuffle=False)
     test_df = test_df.iloc[-25:, :]
 
     prediction_np = np.array([]).reshape((-1, 6))
@@ -340,5 +341,5 @@ def test():
 
 # physical_devices =
 
-training()
+# training()
 test()
