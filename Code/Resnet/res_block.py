@@ -29,18 +29,18 @@ class ResBlock(object):
                                        padding='same')(x)
         else:  # 要归一化
             # 不需要像之前的batch_normalization要传入variance 和 mean ，这里包装的很好
-            x = tf.keras.layers.BatchNormalization(x)
+            x = tf.keras.layers.BatchNormalization()(x, training=True)
             x = tf.keras.layers.ReLU()(x)
             x = tf.keras.layers.Conv2D(self.output_channel, (3, 3),
                                        kernel_regularizer=tf.keras.regularizers.l2(0.00025), strides=self.stride,
                                        use_bias=False,
                                        padding='same')(x)
-        x = tf.keras.layers.BatchNormalization(x)
+        x = tf.keras.layers.BatchNormalization()(x, training=True)
         x = tf.keras.layers.ReLU()(x)
         x = tf.keras.layers.Conv2D(self.output_channel, (3, 3), kernel_regularizer=tf.keras.regularizers.l2(0.00025),
-                                   strides=self.stride, use_bias=False, padding='same')(x)
+                                   strides=1, use_bias=False, padding='same')(x)    # 照着别人抄都抄错了
         if self.increase_dim is True:
-            shortcut = tf.keras.layers.AveragePooling2D(pool_size=(2, 2), strides=(2, 2), )(shortcut)
+            shortcut = tf.keras.layers.AveragePooling2D(pool_size=(2, 2), strides=(2, 2), padding='SAME')(shortcut)
             padded_input = tf.pad(shortcut, [[0, 0], [0, 0], [0, 0], [input_channel // 2, input_channel // 2]])
         else:
             padded_input = shortcut
