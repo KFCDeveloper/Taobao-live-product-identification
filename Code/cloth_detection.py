@@ -11,7 +11,7 @@ from Yolo_v3.usage_util import Read_Img_2_Tensor, Load_DeepFashion2_Yolov3, Draw
 
 def Detect_Clothes(img, model_yolov3, eager_execution=True):
     """Detect clothes in an image using Yolo_v3-v3 model trained on DeepFashion2 dataset"""
-    img = tf.image.resize(img, (416, 416))      # 我在这里需要修改 大小
+    img = tf.image.resize(img, (416, 416))  # 我在这里需要修改 大小
 
     t1 = time.time()
     if eager_execution == True:
@@ -52,7 +52,6 @@ def Detect_Clothes_and_Crop(img_tensor, model, threshold=0.5):
         if obj['label'] == 'short_sleeve_top' and obj['confidence'] > threshold:
             img_crop = img[int(obj['y1'] * img_height):int(obj['y2'] * img_height),
                        int(obj['x1'] * img_width):int(obj['x2'] * img_width), :]
-
     return img_crop
 
 

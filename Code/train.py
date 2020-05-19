@@ -120,12 +120,9 @@ class ResNetImprove(tk.Model):
 
     def network_learn(self, input_tensor):
         # 解包入参,注意要传入的是列表
-        input_image, input_label, input_bbox, epoch = input_tensor
-
-        # 应用梯度更新权重  并且会初始化
-        g = self.get_grad(input_tensor)
-        tk.optimizers.Adam(learning_rate=self.lr).apply_gradients(zip(g, self.trainable_variables))
-
+        input_image, input_label, input_bbox, global_epoch = input_tensor
+        # 计算损失
+        self.train_loss = self.get_loss(input_tensor)
         # 更新输出
         logits, bbox, global_pool = self.basic_resnet_model(input_image)
         # 开始计算 top_k_error
@@ -134,9 +131,9 @@ class ResNetImprove(tk.Model):
 
         # 画图
         with summary_writer.as_default():
-            tf.summary.scalar('learning_rate', self.lr, epoch)
-            tf.summary.scalar('train_loss', self.train_loss, epoch)
-            tf.summary.scalar('train_top1_error', self.top1_error, epoch)
+            tf.summary.scalar('learning_rate', self.lr, global_epoch)
+            tf.summary.scalar('train_loss', self.train_loss, global_epoch)
+            tf.summary.scalar('train_top1_error', self.top1_error, global_epoch)
         # 先用 EMA 更新参数
         global_step = tf.Variable(tf.constant(0), trainable=False)
         ema = tf.train.ExponentialMovingAverage(0.95, global_step)
@@ -144,14 +141,18 @@ class ResNetImprove(tk.Model):
         self.top1_error = tf.Variable(self.top1_error)
         self.train_loss = tf.Variable(self.train_loss)
         train_ema_op = ema.apply([self.train_loss, self.top1_error])  # TODO: 我康康不返回 operation 会不会更新参数
+        global_epoch.assign_add(1)  # 更新 global_epoch
         with summary_writer.as_default():
-            tf.summary.scalar('train_top1_error_avg', ema.average(self.top1_error), epoch)
-            tf.summary.scalar('train_loss_avg', ema.average(self.train_loss), epoch)
+            tf.summary.scalar('train_top1_error_avg', ema.average(self.top1_error), global_epoch)
+            tf.summary.scalar('train_loss_avg', ema.average(self.train_loss), global_epoch)
+        # 应用梯度更新权重  并且会初始化
+        g = self.get_grad(input_tensor)
+        tk.optimizers.Adam(learning_rate=self.lr).apply_gradients(zip(g, self.trainable_variables))
         return self.train_loss, self.top1_error
 
     def network_learn_validation(self, input_tensor):
         # 解包入参,注意要传入的是列表
-        input_image, input_label, input_bbox, epoch = input_tensor
+        input_image, input_label, input_bbox, validation_epoch = input_tensor
         # 初始化 或者 更新 loss
         self.get_loss_validation(input_tensor)
         # 更新输出
@@ -160,16 +161,15 @@ class ResNetImprove(tk.Model):
         predictions = tf.nn.softmax(logits)
         self.top1_error = self.top_k_error(predictions, input_label, 1)
         # 下面就 EMA开始更新参数
-        validation_step = tf.Variable(tf.constant(0), trainable=False)
 
-        ema1 = tf.train.ExponentialMovingAverage(0.0, validation_step)
-        ema2 = tf.train.ExponentialMovingAverage(0.95, validation_step)
+        ema1 = tf.train.ExponentialMovingAverage(0.0, validation_epoch)
+        ema2 = tf.train.ExponentialMovingAverage(0.95, validation_epoch)
 
         # 需要将传入ema的qpply的参数变成 Variable 不然top1_error和train_loss无法改变
         self.top1_error = tf.Variable(self.top1_error)
         self.train_loss = tf.Variable(self.train_loss)
         # group返回的也是operation       # validation_step.assign_add(1)会让validation_step加1，可能是会循环的
-        val_op = tf.group(validation_step.assign_add(1), ema1.apply([self.top1_error, self.train_loss]),
+        val_op = tf.group(validation_epoch.assign_add(1), ema1.apply([self.top1_error, self.train_loss]),
                           ema2.apply([self.top1_error, self.train_loss]))
         # ema1.average(val) 表示去取得val更新后的值，不是指的再求一次平均值
         # TODO:我要看看这里的 top1_error_val 和 top1_error_avg 是否是一样的
@@ -178,13 +178,13 @@ class ResNetImprove(tk.Model):
         loss_val = ema1.average(self.train_loss)
         loss_val_avg = ema2.average(self.train_loss)
         with summary_writer.as_default():
-            tf.summary.scalar('val_top1_error', top1_error_val, epoch)
-            tf.summary.scalar('val_top1_error_avg', top1_error_avg, epoch)
-            tf.summary.scalar('val_loss', loss_val, epoch)
-            tf.summary.scalar('val_loss_avg', loss_val_avg, epoch)
+            tf.summary.scalar('val_top1_error', top1_error_val, validation_epoch)
+            tf.summary.scalar('val_top1_error_avg', top1_error_avg, validation_epoch)
+            tf.summary.scalar('val_loss', loss_val, validation_epoch)
+            tf.summary.scalar('val_loss_avg', loss_val_avg, validation_epoch)
         # 需要val_op的时候自然是要返回的
         # TODO: 我康康不返回 operation 会不会更新参数
-        return self.train_loss, self.top1_error
+        return self.top1_error, self.train_loss
 
     def full_validation(self, validation_df):
         num_batches = len(validation_df) // VALI_BATCH_SIZE
@@ -194,7 +194,7 @@ class ResNetImprove(tk.Model):
             offset = i * VALI_BATCH_SIZE
             vali_batch_df = validation_df.iloc[offset:offset + VALI_BATCH_SIZE, :]
             validation_image_batch, validation_labels_batch, validation_bbox_batch = load_data_numpy(vali_batch_df)
-            temp_validation_loss, temp_validation_top_k_error = self.network_learn_validation(
+            temp_validation_top_k_error, temp_validation_loss = self.network_learn_validation(
                 [validation_image_batch, validation_labels_batch, validation_bbox_batch, i])
             loss_list.append(temp_validation_loss)
             error_list.append(temp_validation_top_k_error)
@@ -210,6 +210,9 @@ def training():
                          usecols=['img_path', 'label', 'x_min', 'y_min', 'x_max', 'y_max'], if_shuffle=True)
 
     num_train = len(train_df)
+    # TODO:我没用这个东西，可能会造成后面summary的时候，x轴重复
+    global_epoch = tf.Variable(tf.constant(0, dtype=tf.int64), trainable=False, )
+    validation_epoch = tf.Variable(tf.constant(0, dtype=tf.int64), trainable=False)
 
     loss_list = []
     step_list = []
@@ -221,7 +224,7 @@ def training():
     train_model = ResNetImprove(False, lr=0.001)
     # TODO: 不知道这行加不加
     # train_model.build(input_shape=)
-    validation_model = ResNetImprove(True, lr=0.001)
+    # validation_model = ResNetImprove(True, lr=0.001)
 
     # 开始手动训练
     for epoch in range(STEP_TO_TRAIN):
@@ -235,19 +238,19 @@ def training():
         start_time = time.time()
         if epoch == 0:
             if FULL_VALIDATION is True:
-                vali_temp_top1_error, vali_temp_loss = validation_model.full_validation(vali_df)
+                vali_temp_top1_error, vali_temp_loss = train_model.full_validation(vali_df)
                 with summary_writer.as_default():
                     tf.summary.scalar("full_validation_error", vali_temp_top1_error, step=epoch)
                     tf.summary.scalar("full_validation_loss", vali_temp_loss, step=epoch)
                 pass
             else:
-                vali_temp_top1_error, vali_temp_loss = validation_model.network_learn_validation(
-                    [validation_image_batch, validation_labels_batch, validation_bbox_batch, epoch])
+                vali_temp_top1_error, vali_temp_loss = train_model.network_learn_validation(
+                    [validation_image_batch, validation_labels_batch, validation_bbox_batch, validation_epoch])
             print('Validation top1 error = ' + str(vali_temp_top1_error.numpy()))
             print('Validation loss = ' + str(vali_temp_loss.numpy()))
             print('----------------------------')
 
-        temp_loss, temp_top_k_error = train_model.network_learn([batch_data, batch_label, batch_bbox, epoch])
+        temp_loss, temp_top_k_error = train_model.network_learn([batch_data, batch_label, batch_bbox, global_epoch])
         duration = time.time() - start_time
 
         # 隔几个epoch  就打印一次报告
@@ -259,13 +262,13 @@ def training():
             print(format_str % (datetime.now(), epoch, temp_loss.numpy(), examples_per_sec, sec_per_batch))
             print('Train top1 error = ', temp_top_k_error.numpy())
             if FULL_VALIDATION is True:
-                vali_temp_top1_error, vali_temp_loss = validation_model.full_validation(vali_df)
+                vali_temp_top1_error, vali_temp_loss = train_model.full_validation(vali_df)
                 with summary_writer.as_default():
                     tf.summary.scalar("full_validation_error", vali_temp_top1_error, step=epoch)
                     tf.summary.scalar("full_validation_loss", vali_temp_loss, step=epoch)
             else:
-                vali_temp_top1_error, vali_temp_loss = validation_model.network_learn_validation(
-                    [validation_image_batch, validation_labels_batch, validation_bbox_batch, epoch])
+                vali_temp_top1_error, vali_temp_loss = train_model.network_learn_validation(
+                    [validation_image_batch, validation_labels_batch, validation_bbox_batch, validation_epoch])
             print('Validation top1 error = %.4f' % vali_temp_top1_error.numpy())
             print('Validation loss = ', vali_temp_loss.numpy())
             print('----------------------------')
@@ -273,8 +276,7 @@ def training():
             if vali_temp_top1_error < min_error:
                 min_error = vali_temp_top1_error
                 # 保存权重  我这种子类模型是不能用 model.save()的，只能保存权重
-                train_model.save_weights(train_min_checkpoint_path)
-                validation_model.save_weights(vali_min_checkpoint_path)
+                # train_model.save_weights(train_min_checkpoint_path)
                 print('Current lowest error = ', min_error)
 
             step_list.append(epoch)
@@ -287,8 +289,7 @@ def training():
                 const.learning_rate = const.learning_rate * 0.1
             if epoch % 10000 == 0 or (epoch + 1) == STEP_TO_TRAIN:
                 # 保存模型
-                train_model.save_weights(train_checkpoint_path)
-                validation_model.save_weights(vali_checkpoint_path)
+                # train_model.save_weights(train_checkpoint_path)
                 # TODO:saver.save(sess, checkpoint_path, global_step=epoch)
                 # 将error保存下来
                 error_df = pd.DataFrame(data={'step': step_list, 'train_error': train_error_list,
@@ -297,7 +298,6 @@ def training():
             if (epoch + 1) == STEP_TO_TRAIN:
                 # 保存模型
                 train_model.save_weights(train_checkpoint_path)
-                validation_model.save_weights(vali_checkpoint_path)
                 # 将error保存下来
                 error_df = pd.DataFrame(data={'step': step_list, 'train_error': train_error_list,
                                               'validation_error': validation_error_list})
@@ -316,30 +316,31 @@ def test():
     # TODO: 这里的输入需要修改
     test_df = prepare_df(const.test_path, usecols=['img_path', 'label', 'x_min', 'y_min', 'x_max', 'y_max'],
                          if_shuffle=False)
-    test_df = test_df.iloc[-25:, :]
+    # test_df = test_df.iloc[-25:, :]
 
-    prediction_np = np.array([]).reshape((-1, 6))
+    prediction_np = np.array([]).reshape((-1, 23))
     fc_np = np.array([]).reshape((-1, 64))
     # Hack here: 25 as batch size. 50000 images in total
-    for epoch in range(len(test_df) // TEST_BATCH_SIZE):
-        df_batch = test_df.iloc[epoch * 25: (epoch + 1) * 25, :]
+    for step in range(len(test_df) // TEST_BATCH_SIZE):
+        df_batch = test_df.iloc[step * 25: (step + 1) * 25, :]
         test_batch, test_label, test_bbox = load_data_numpy(df_batch)
-        test_loss, test_error_value = test_model.network_learn([test_batch, test_label, test_bbox, epoch])
-        if epoch % 100 == 0:
-            print('Testing %i batches...' % epoch)
-            if epoch != 0:
-                print('Test_error = ', test_error_value)
+
         # 注意这里没有进行训练的，只是用模型 predict了一下，相当于输出了一下
         logits, bbox, fc_batch_value = test_model([test_batch, test_label, test_bbox, None, None])
         prediction_batch_value = tf.nn.softmax(logits)
+        test_error_value = test_model.top_k_error(prediction_batch_value, test_label, 1)
+        if step % 100 == 0:
+            print('Testing %i batches...' % step)
+            if step != 0:
+                print('Test_error = ', test_error_value)
         prediction_np = np.concatenate((prediction_np, prediction_batch_value), axis=0)
         fc_np = np.concatenate((fc_np, fc_batch_value))
     print('Predictin array has shape ', fc_np.shape)
     # TODO:这保存下来的应该就是特征了吧
-    np.save(const.fc_path, fc_np[-5:, :])
+    np.save(const.fc_path, fc_np[:, :])
 
 
-# physical_devices =
-
-# training()
-test()
+# 需要训练的时候 training()
+training()
+# 需要输出特征的时候 用test()
+# test()

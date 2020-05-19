@@ -252,6 +252,7 @@ def YoloV3Tiny(size=None, channels=3, anchors=yolo_tiny_anchors,
     return Model(inputs, outputs, name='yolov3_tiny')
 
 
+# 返回函数
 def YoloLoss(anchors, classes=80, ignore_thresh=0.5):
     def yolo_loss(y_true, y_pred):
         # 1. transform all pred outputs

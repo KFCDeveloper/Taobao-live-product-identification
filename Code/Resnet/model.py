@@ -1,8 +1,8 @@
 # coding=utf-8
 import tensorflow as tf
-from .res_block import ResBlock
+from Resnet.res_block import ResBlock
 
-NUM_LABELS = 23  # 淦，这里之前是12，我忘记改了，导致后面sparse_softmax_cross_entropy_with_logits返回Nan
+NUM_LABELS = 23  # 淦，这里之前是6，我忘记改了，导致后面sparse_softmax_cross_entropy_with_logits返回Nan
 
 
 def ResNet_6N_2(shape, n):
@@ -31,7 +31,8 @@ def ResNet_6N_2(shape, n):
     output_layer = OutputLayer([global_pool, NUM_LABELS])
     cls_output, bbx_output = output_layer(global_pool)
     model = tf.keras.Model(inputs=inputs, outputs=[cls_output, bbx_output, global_pool], name="ResNet_6N_2")
-    model.compile(optimizer=tf.keras.optimizers.Adam(), loss="categorical_crossentropy", metrics=["acc"])
+    # 由于我在主要的training已经手动 apply了梯度下降，所以这里应该不用配置模型了
+    # model.compile(optimizer=tf.keras.optimizers.Adam(), loss="categorical_crossentropy", metrics=["acc"])
     return model
 
 
@@ -59,3 +60,9 @@ class OutputLayer(tf.keras.layers.Layer):
         fc_h = tf.matmul(input_layer, self.fc_w) + self.fc_b
         fc_h2 = tf.matmul(input_layer, self.fc_w2) + self.fc_b2
         return fc_h, fc_h2
+
+
+if __name__ == '__main__':
+    # 输出ResNet的结构
+    model = ResNet_6N_2(shape=[64, 64, 3], n=2)
+    tf.keras.utils.plot_model(model, to_file='model3.png', show_shapes=True, show_layer_names=True)

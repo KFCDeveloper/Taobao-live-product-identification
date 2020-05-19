@@ -7,8 +7,11 @@ class _Const:
         pass
 
     def __setattr__(self, name, value):
-        if name in self.__dict__:
-            raise self.ConstError("Can't change const.{}".format(name))
+        # 不能修改已经设定的属性
+        # if name in self.__dict__:
+        #     raise self.ConstError("Can't change const.{}".format(name))
+
+        # 名字必须都大写
         # if not name.isupper():
         #     raise self.ConstCaseError("const name {} is not all uppercase".format(name))
         self.__dict__[name] = value
