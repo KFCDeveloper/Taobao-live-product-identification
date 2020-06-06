@@ -17,8 +17,8 @@ from tensorflow.keras.losses import (
     binary_crossentropy,
     sparse_categorical_crossentropy
 )
-from .batch_norm import BatchNormalization
-from .yolo_utils import broadcast_iou
+from Yolo_v3.batch_norm import BatchNormalization
+from Yolo_v3.yolo_utils import broadcast_iou
 
 yolo_anchors = np.array([(10, 13), (16, 30), (33, 23), (30, 61), (62, 45),
                          (59, 119), (116, 90), (156, 198), (373, 326)],
@@ -311,3 +311,9 @@ def YoloLoss(anchors, classes=80, ignore_thresh=0.5):
         return xy_loss + wh_loss + obj_loss + class_loss
 
     return yolo_loss
+
+
+if __name__ == '__main__':
+    # 生成结构图
+    model = YoloV3(classes=13)
+    tf.keras.utils.plot_model(model, to_file='yolo_v3.png', show_shapes=True, show_layer_names=True)
